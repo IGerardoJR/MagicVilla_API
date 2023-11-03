@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MagicVilla_API.Models
 // Modelo.Villa
@@ -6,6 +7,7 @@ namespace MagicVilla_API.Models
     public class Villa
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)] // Como controlaremos el ID
         public int Id { get; set; } // PK
         public string Nombre { get; set; }
 

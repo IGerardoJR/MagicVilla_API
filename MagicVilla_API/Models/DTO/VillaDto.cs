@@ -16,6 +16,8 @@ namespace MagicVilla_API.Models.Dto
         [Required]
         public Double Tarifa { get; set; }
 
+        
+
 
 
         public int Ocupantes { get; set; }
