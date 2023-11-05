@@ -5,6 +5,8 @@ namespace MagicVilla_API.Models.Dto
     // Los Dto nos sirven para exponer solo ciertos atributos
     public class VillaDto
     {
+
+      
         public int Id { get; set; }
  
         [Required]
@@ -15,10 +17,6 @@ namespace MagicVilla_API.Models.Dto
 
         [Required]
         public Double Tarifa { get; set; }
-
-        
-
-
 
         public int Ocupantes { get; set; }
 
