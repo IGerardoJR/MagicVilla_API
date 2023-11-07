@@ -26,7 +26,11 @@ builder.Services.AddDbContext<ApplicationDbContext>(option =>
 // Agregamos el servicio del automapper
 builder.Services.AddAutoMapper(typeof(MappingConfig));
 
+
 builder.Services.AddScoped<IVillaRepositorio, VillaRepositorio>();
+builder.Services.AddScoped<INumeroRepositorio, NumeroVillaRepositorio>();
+
+
 
 var app = builder.Build();
 

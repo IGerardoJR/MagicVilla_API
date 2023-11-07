@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
+using System.Net;
+
 namespace MagicVilla_API.Controllers
 {
 
@@ -44,16 +46,36 @@ namespace MagicVilla_API.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         // Creacion de endpoint para obtener todas las villas
         // Retornamos los datos genericos de la Lista villaList
-        public async Task<ActionResult<IEnumerable<VillaDto>>> GetVillaTodas()
+        public async Task<ActionResult<ApiResponse>> GetVillaTodas()
         {
-            _logger.LogInformation("Se obtuvieron todas las villas");
-            //return Ok(VillaStore.villaList);
 
-            //IEnumerable<Villa> villaList = await _context.Villas.ToListAsync();
-            IEnumerable<Villa> villaList = await _villaRepo.ObtenerTodos();
-            return Ok(_mapper.Map<IEnumerable<VillaDto>>(villaList));
-            //return Ok(await _context.Villas.ToListAsync());
+            try
+            {
+                _logger.LogInformation("Se obtuvieron todas las villas");
+                //return Ok(VillaStore.villaList);
 
+                //IEnumerable<Villa> villaList = await _context.Villas.ToListAsync();
+                IEnumerable<Villa> villaList = await _villaRepo.ObtenerTodos();
+
+                _response.Resultado = _mapper.Map<IEnumerable<VillaDto>>(villaList);
+
+                _response._statusCode = System.Net.HttpStatusCode.OK;
+                return Ok(_response);
+
+                //return Ok(_mapper.Map<IEnumerable<VillaDto>>(villaList));
+                //return Ok(await _context.Villas.ToListAsync());
+
+            }
+            catch (Exception ex)
+            {
+                _response.IsExitoso = false;
+                // Guardamos los errores en una lista
+                _response.ErrorMessages = new List<String>() { ex.ToString()}; 
+            }
+
+            return _response;
+
+            
         }
 
 
@@ -66,76 +88,95 @@ namespace MagicVilla_API.Controllers
 
         // Endpoint para obtener solo una villa
 
-        public async Task<ActionResult<VillaDto>> GetVilla(int id)
+        public async Task<ActionResult<ApiResponse>> GetVilla(int id)
         {
-            // Zona de validaciones.
-            if(!ModelState.IsValid)
+
+            try
             {
-                return BadRequest(ModelState.ToString());
+                // Zona de validaciones.
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState.ToString());
+                }
+
+
+
+                //var villa = VillaStore.villaList.FirstOrDefault(v => v.Id == id);
+                //var villa = await _context.Villas.FirstOrDefaultAsync(v => v.Id == id);
+                var villa = await _villaRepo.Obtener(v => v.Id == id);
+
+
+                if (id == 0)
+                {
+                    _logger.LogError($"ERROR AL TRAER LA VILLA CON EL ID : {id}");
+                    _response._statusCode = System.Net.HttpStatusCode.BadRequest;
+                    return BadRequest(_response);
+                }
+                if (villa == null)
+                {
+                    _response._statusCode = System.Net.HttpStatusCode.NotFound;
+                    return NotFound(_response);
+                }
+
+                _response.Resultado = _mapper.Map<VillaDto>(villa);
+                _response._statusCode = HttpStatusCode.OK;
+                return Ok(_response);
+
+            }
+            catch (Exception ex)
+            {
+
+                _response.IsExitoso = false;
+                _response.ErrorMessages = new List<string>() { ex.ToString() };
             }
 
-
-
-            //var villa = VillaStore.villaList.FirstOrDefault(v => v.Id == id);
-            //var villa = await _context.Villas.FirstOrDefaultAsync(v => v.Id == id);
-            var villa = await _villaRepo.Obtener(v => v.Id == id);
-
-
-            if (id == 0)
-            {
-                _logger.LogError($"ERROR AL TRAER LA VILLA CON EL ID : {id}");
-                return BadRequest();
-            }
-            if(villa == null)
-            {
-                return NotFound();
-            }
-
-           return Ok(_mapper.Map<VillaDto>(villa));
+            return _response;
+           //return Ok(_mapper.Map<VillaDto>(villa));
         }
 //-------------------------------------------------------------------------------------------
         [HttpPost]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult<VillaDto>> CrearVilla([FromBody] VillaCreateDto createDto)
+        public async Task<ActionResult<ApiResponse>> CrearVilla([FromBody] VillaCreateDto createDto)
         {
 
-            if (await _villaRepo.Obtener(v => v.Nombre.ToLower() == createDto.Nombre.ToLower())!=null)
+            try
             {
-                ModelState.AddModelError("NombreExiste", "La villa con ese nombre ya existe!");
-                return BadRequest(ModelState);
+                if (await _villaRepo.Obtener(v => v.Nombre.ToLower() == createDto.Nombre.ToLower()) != null)
+                {
+                    ModelState.AddModelError("NombreExiste", "La villa con ese nombre ya existe!");
+                    _response._statusCode = HttpStatusCode.BadRequest;
+
+                    return BadRequest(ModelState);
+                }
+
+                if (createDto == null) { return BadRequest(createDto); }
+
+                //                                Recibe los datos de:
+                Villa modelo = _mapper.Map<Villa>(createDto);
+
+
+
+
+                // Insercion de datos en base al modelo
+                modelo.FechaCreacion = DateTime.Now;
+                modelo.FechaActualizacion = DateTime.Now;
+
+
+                await _villaRepo.Crear(modelo);
+                _response.Resultado = modelo;
+                _response._statusCode = HttpStatusCode.Created;
+
+                return CreatedAtRoute("GetVilla", new { id = modelo.Id }, _response);
+            }
+            catch (Exception ex)
+            {
+                _response.IsExitoso = false;
+                _response.ErrorMessages = new List<String>() { ex.ToString() };
             }
 
-            if (createDto == null) {  return BadRequest(createDto); }
-
-            //                                Recibe los datos de:
-            Villa modelo = _mapper.Map<Villa>(createDto);
-          
-
-            //villaDto.Id = VillaStore.villaList.OrderByDescending(v => v.Id).FirstOrDefault().Id + 1;
-            //VillaStore.villaList.Add(villaDto);
-
-
-            // Creando modelo
-            // Teniendo el automapper podremos comentar el modelo.
-            //Villa modelo = new()
-            //{
-            //    Nombre =  createDto.Nombre,
-            //    Detalle = createDto.Detalle,
-            //    ImagenUrl = createDto.ImagenUrl,
-            //    Amenidad = createDto.Amenidad,
-            //    Ocupantes = createDto.Ocupantes,
-            //    Tarifa = createDto.Tarifa,
-            //    MetrosCuadrados =  createDto.MetrosCuadrados
-            //};
-
-            // Insercion de datos en base al modelo
-            await _villaRepo.Crear(modelo);
-            // Guardamos los cambios en la DB
-            //await _context.SaveChangesAsync(); // Ya viene incluido en la metodo Crear
-
-            return CreatedAtRoute("GetVilla",new {id = modelo.Id},createDto);
+            return _response;
 
         }
 
@@ -149,34 +190,42 @@ namespace MagicVilla_API.Controllers
 
         public async Task<IActionResult> DeleteVilla(int id)
         {
-           // Si el id es menor a 1 
-            if(id == 0)
+
+            try
             {
-                return BadRequest();
+                // Si el id es menor a 1 
+                if (id == 0)
+                {
+                    _response.IsExitoso = false;
+                    _response._statusCode = HttpStatusCode.BadRequest;
+                    return BadRequest(_response);
+                }
+
+
+                var villa = await _villaRepo.Obtener(v => v.Id == id);
+
+                // En caso de que no se encuentre el registro solicitado.
+                if (villa == null)
+                {
+                    _response.IsExitoso = false;
+                    _response._statusCode = HttpStatusCode.BadRequest;
+                    return NotFound(_response);
+                }
+
+                await _villaRepo.Remover(villa);
+
+                _response._statusCode = HttpStatusCode.NoContent;
+
+                return Ok(_response);
             }
-
-            //var villa = VillaStore.villaList.FirstOrDefault(v => v.Id == id);
-
-            var villa = await _villaRepo.Obtener(v => v.Id == id);
-            
-            // En caso de que no se encuentre el registro solicitado.
-            if(villa == null)
+            catch (Exception ex)
             {
-                return NotFound();
+                _response.IsExitoso = false;
+                _response.ErrorMessages = new List<string>() { ex.ToString() };
+              
             }
-
-            //VillaStore.villaList.Remove(villa);
-            // Eliminamos la villa
-            //_context.Villas.Remove(villa);
-            await _villaRepo.Remover(villa);
-            // Guardamos los cambios
-            //await _context.SaveChangesAsync();
-
-            return NoContent();   
+            return Ok(_response);
         }
-
-        
-
 
 //-------------------------------------------------------------------------------------
         // PUT / ACTUALIZAR
@@ -188,34 +237,18 @@ namespace MagicVilla_API.Controllers
         { 
             if (updateDto == null || id != updateDto.Id)
             {
-                return BadRequest(); 
+                _response._statusCode  = HttpStatusCode.BadRequest;
+                _response.IsExitoso = false;
+                return BadRequest(_response); 
             }
 
-            //var villa = VillaStore.villaList.FirstOrDefault(v => v.Id == id);
-
-            //villa.Nombre = villaDto.Nombre;
-            //villa.Ocupantes = villaDto.Ocupantes;
-            //villa.MetrosCuadrados = villaDto.MetrosCuadrados;
             var modelo = _mapper.Map<Villa>(updateDto);
 
-
-            // Con el automapper podremos commentar las siguientes lineas del modelo.
-            //Villa modelo = new()
-            //{
-            //    Id = villaDto.Id,
-            //    Nombre = villaDto.Nombre,
-            //    Detalle = villaDto.Detalle,
-            //    ImagenUrl = villaDto.ImagenUrl,
-            //    Ocupantes = villaDto.Ocupantes,
-            //    Tarifa = villaDto.Tarifa,
-            //    MetrosCuadrados = villaDto.MetrosCuadrados,
-            //    Amenidad = villaDto.Amenidad
-            //};
-
-            //_context.Villas.Update(modelo);
+            modelo.FechaActualizacion = DateTime.Now;
             await _villaRepo.Actualizar(modelo);
-            //await _context.SaveChangesAsync();
-            return NoContent();
+            _response._statusCode = HttpStatusCode.NoContent;
+       
+            return Ok(_response);
         }
 
 //------------------------------------------------------------------------------------
@@ -238,23 +271,7 @@ namespace MagicVilla_API.Controllers
             var villa = await _villaRepo.Obtener(v => v.Id == id, tracked : false);
             VillaUpdateDto villaDto = _mapper.Map<VillaUpdateDto>(villa);
 
-            //VillaUpdateDto villaDto = new()
-            //{
-            //    Id = villa.Id,
-            //    Nombre = villa.Nombre,
-            //    Detalle = villa.Detalle,
-            //    ImagenUrl = villa.ImagenUrl,
-            //    Ocupantes = villa.Ocupantes,
-            //    Tarifa = villa.Tarifa,
-            //    MetrosCuadrados = villa.MetrosCuadrados,
-            //    Amenidad = villa.Amenidad
-
-            //};
-
-
-
-
-            ////patchDto.ApplyTo(villa, ModelState);
+            
             if (villa == null) { return BadRequest(); }
 
             patchDto.ApplyTo(villaDto, ModelState);
@@ -262,24 +279,9 @@ namespace MagicVilla_API.Controllers
 
             Villa modelo = _mapper.Map<Villa>(villaDto);
 
-
-            //Villa modelo = new()
-            //{
-            //    Id = villaDto.Id, 
-            //    Nombre = villaDto.Nombre,
-            //    Detalle = villaDto.Detalle,
-            //    ImagenUrl = villaDto.ImagenUrl,
-            //    Ocupantes = villaDto.Ocupantes,
-            //    Tarifa = villaDto.Tarifa,
-            //    MetrosCuadrados = villaDto.MetrosCuadrados,
-            //    Amenidad = villaDto.Amenidad
-            //};
-
-
-            //_context.Villas.Update(modelo);
-
-           await _villaRepo.Actualizar(modelo);
-           //await _context.SaveChangesAsync();
+            await _villaRepo.Actualizar(modelo);
+            _response._statusCode = HttpStatusCode.NoContent;
+        
 
 
             if (!ModelState.IsValid)
@@ -287,7 +289,7 @@ namespace MagicVilla_API.Controllers
                 return BadRequest(ModelState);
             }
 
-            return NoContent();
+            return Ok(_response);
 
           
         }
